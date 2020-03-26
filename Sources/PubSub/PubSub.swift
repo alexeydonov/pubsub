@@ -12,6 +12,10 @@ import Foundation
 /// Publisher
 public final class Publisher<Value> {
 
+    public init() {
+        
+    }
+
     /// Publish value to subscriptions
     ///
     /// - Parameter value: Value to be published
