@@ -41,6 +41,10 @@ public final class Publisher<Value> {
         return subscription
     }
 
+    public func reset() {
+        lastValue = nil
+    }
+
     fileprivate func unsubscribe(_ subscription: Subscription<Value>) {
         subscriptions.removeAll { $0 === subscription }
     }

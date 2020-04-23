@@ -134,6 +134,20 @@ final class PubSubTests: XCTestCase {
         wait(for: [expectation], timeout: 1)
     }
 
+    func testNoReference() {
+        let expectation = XCTestExpectation()
+
+        let publisher = Publisher<Int>()
+        publisher.publish(10)
+
+        publisher.subscribe().consume {
+            XCTAssertEqual(10, $0)
+            expectation.fulfill()
+        }.unsubscribe()
+
+        wait(for: [expectation], timeout: 1)
+    }
+
     static var allTests = [
         ("lastValue", testLastValue),
         ("case", testCase),
@@ -141,6 +155,7 @@ final class PubSubTests: XCTestCase {
         ("map", testMap),
         ("compactMap", testCompactMap),
         ("flatMap", testFlatMap),
-        ("error", testError)
+        ("error", testError),
+        ("noReference", testNoReference)
     ]
 }
