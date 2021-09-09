@@ -9,11 +9,17 @@ import Foundation
 
 // MARK: - Publisher
 
-/// Publisher
-public final class Publisher<Value> {
+private typealias UnsubscribeHook = () -> Void
 
-    public init() {
-        
+/// Publisher
+public final class Publisher<Value>: CustomStringConvertible {
+
+    public convenience init() {
+        self.init(unsubscribeHook: nil)
+    }
+
+    fileprivate init(unsubscribeHook: UnsubscribeHook?) {
+        self.unsubscribeHook = unsubscribeHook
     }
 
     /// Publish value to subscriptions
@@ -41,31 +47,38 @@ public final class Publisher<Value> {
         return subscription
     }
 
+    private let unsubscribeHook: UnsubscribeHook?
+
     public func reset() {
         lastValue = nil
     }
 
     fileprivate func unsubscribe(_ subscription: Subscription<Value>) {
         subscriptions.removeAll { $0 === subscription }
+        unsubscribeHook?()
     }
 
     private var lastValue: Value?
 
-    private var subscriptions: [Subscription<Value>] = []
+    var subscriptions: [Subscription<Value>] = []
+
+    public var description: String {
+        "\(type(of: self)) \(subscriptions)"
+    }
 
 }
 
 // MARK: - Subscription
 
 /// Basic subscription that obly passes value to downstreams
-public class Subscription<Value> {
+public class Subscription<Value>: CustomStringConvertible {
 
     public func unsubscribe() {
-        if let publisher = self.publisher {
-            publisher.unsubscribe(self)
+        if let upstream = self.upstream {
+            upstream.unsubscribe(me: self)
         }
-        else if let upstream = self.upstream {
-            upstream.unsubscribe()
+        else if let publisher = self.publisher {
+            publisher.unsubscribe(self)
         }
     }
 
@@ -76,6 +89,13 @@ public class Subscription<Value> {
 
         if let value = initialValue {
             receive(value)
+        }
+    }
+
+    fileprivate func unsubscribe(me downstream: Subscription) {
+        downstreams.removeAll { $0 === downstream }
+        if downstreams.isEmpty {
+            unsubscribe()
         }
     }
 
@@ -93,10 +113,13 @@ public class Subscription<Value> {
 
     private var initialValue: Value?
     private unowned var publisher: Publisher<Value>?
-    private unowned var upstream: Subscription<Value>?
+    fileprivate unowned var upstream: Subscription<Value>?
 
-    private var downstreams: [Subscription<Value>] = []
+    var downstreams: [Subscription<Value>] = []
 
+    public var description: String {
+        "\(type(of: self))\(downstreams.isEmpty ? "" : " \(downstreams)")"
+    }
 }
 
 // MARK: - ConsumeSubscription
@@ -247,7 +270,16 @@ final class MapSubscription<Input, Output>: Subscription<Input> {
         super.init(publisher: publisher, upstream: upstream, initialValue: initialValue)
     }
 
-    fileprivate var transformPublisher = Publisher<Output>()
+    fileprivate lazy var transformPublisher: Publisher<Output> = {
+        let publisher = Publisher<Output> { [weak self] in
+            guard let self = self else { return }
+            if self.transformPublisher.subscriptions.isEmpty {
+                self.unsubscribe()
+            }
+        }
+
+        return publisher
+    }()
 
     private var transform: (Input) throws -> Output
 
@@ -260,6 +292,10 @@ final class MapSubscription<Input, Output>: Subscription<Input> {
         catch {
             handle(error)
         }
+    }
+
+    override var description: String {
+        "\(type(of: self))\(transformPublisher.subscriptions.isEmpty ? "" : " \(transformPublisher.subscriptions)")"
     }
 }
 
@@ -281,7 +317,16 @@ final class CompactMapSubscription<Input, Output>: Subscription<Input> {
         super.init(publisher: publisher, upstream: upstream, initialValue: initialValue)
     }
 
-    fileprivate var transformPublisher = Publisher<Output>()
+    fileprivate lazy var transformPublisher: Publisher<Output> = {
+        let publisher = Publisher<Output> { [weak self] in
+            guard let self = self else { return }
+            if self.transformPublisher.subscriptions.isEmpty {
+                self.unsubscribe()
+            }
+        }
+
+        return publisher
+    }()
 
     private var transform: (Input) throws -> Output?
 
@@ -294,6 +339,10 @@ final class CompactMapSubscription<Input, Output>: Subscription<Input> {
         catch {
             handle(error)
         }
+    }
+
+    override var description: String {
+        "\(type(of: self))\(transformPublisher.subscriptions.isEmpty ? "" : " \(transformPublisher.subscriptions)")"
     }
 }
 
@@ -315,7 +364,16 @@ final class FlatMapSubscription<Input, Output>: Subscription<Input> {
         super.init(publisher: publisher, upstream: upstream, initialValue: initialValue)
     }
 
-    fileprivate var transformPublisher = Publisher<Output>()
+    fileprivate lazy var transformPublisher: Publisher<Output> = {
+        let publisher = Publisher<Output> { [weak self] in
+            guard let self = self else { return }
+            if self.transformPublisher.subscriptions.isEmpty {
+                self.unsubscribe()
+            }
+        }
+
+        return publisher
+    }()
 
     private var transform: (Input) throws -> [Output]
 
@@ -328,6 +386,10 @@ final class FlatMapSubscription<Input, Output>: Subscription<Input> {
         catch {
             handle(error)
         }
+    }
+
+    override var description: String {
+        "\(type(of: self))\(transformPublisher.subscriptions.isEmpty ? "" : " \(transformPublisher.subscriptions)")"
     }
 }
 

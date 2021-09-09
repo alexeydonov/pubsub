@@ -17,6 +17,43 @@ final class PubSubTests: XCTestCase {
         wait(for: [expectation], timeout: 1)
     }
 
+    func testTree() {
+        let publisher = Publisher<Int>()
+
+        weak var sub_1 = publisher.subscribe().consume { _ in }
+
+        weak var sub_2 = publisher.subscribe()
+        weak var sub_2_1 = sub_2?.map { "\($0)" }.consume { _ in }
+        weak var sub_2_2 = sub_2?.map { Double($0) }.consume { _ in }
+
+        XCTAssertNotNil(sub_1)
+        XCTAssertNotNil(sub_2)
+        XCTAssertNotNil(sub_2_1)
+        XCTAssertNotNil(sub_2_2)
+        XCTAssertEqual(publisher.subscriptions.count, 2)
+        XCTAssertEqual(sub_2?.downstreams.count, 2)
+
+        sub_2_2?.unsubscribe()
+
+        XCTAssertNotNil(sub_2)
+        XCTAssertNotNil(sub_2_1)
+        XCTAssertNil(sub_2_2)
+        XCTAssertEqual(publisher.subscriptions.count, 2)
+        XCTAssertEqual(sub_2?.downstreams.count, 1)
+
+        sub_2_1?.unsubscribe()
+
+        XCTAssertNil(sub_2)
+        XCTAssertNil(sub_2_1)
+        XCTAssertNil(sub_2_2)
+        XCTAssertEqual(publisher.subscriptions.count, 1)
+
+        sub_1?.unsubscribe()
+
+        XCTAssertNil(sub_1)
+        XCTAssertEqual(publisher.subscriptions.count, 0)
+    }
+
     func testCase() {
         let expectation = XCTestExpectation()
 
